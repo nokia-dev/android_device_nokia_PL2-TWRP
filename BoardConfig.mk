@@ -73,6 +73,7 @@ TARGET_USERIMAGES_USE_EXT4 := true
 BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4
 
 # Recovery
+TARGET_RECOVERY_FSTAB := $(LOCAL_PATH)/recovery/root/etc/recovery.fstab
 TARGET_RECOVERY_WIPE := $(LOCAL_PATH)/recovery/root/etc/recovery.wipe
 
 BOARD_HAS_LARGE_FILESYSTEM := true
