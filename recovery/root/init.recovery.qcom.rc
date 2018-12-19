@@ -1,57 +1,47 @@
-# Copyright (c) 2009-2012, 2014-2015, The Linux Foundation. All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-#     * Redistributions of source code must retain the above copyright
-#       notice, this list of conditions and the following disclaimer.
-#     * Redistributions in binary form must reproduce the above copyright
-#       notice, this list of conditions and the following disclaimer in the
-#       documentation and/or other materials provided with the distribution.
-#     * Neither the name of The Linux Foundation nor
-#       the names of its contributors may be used to endorse or promote
-#       products derived from this software without specific prior written
-#       permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-# IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NON-INFRINGEMENT ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
-# OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
-# OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
-# ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#
+on early-init
+    mkdir /firmware 0771 system system
+    mount debugfs debugfs /sys/kernel/debug
+    chmod 0755 /sys/kernel/debug
 
 on fs
     wait /dev/block/platform/soc/${ro.boot.bootdevice}
     symlink /dev/block/platform/soc/${ro.boot.bootdevice} /dev/block/bootdevice
+
     chmod 0660 /dev/qseecom
     chown system drmrpc /dev/qseecom
     chmod 0664 /dev/ion
     chown system system /dev/ion
+
+    # IMPORTANT!
+    # This needs to be supported by the init binary!
     install_keyring
 
-# Needed to make qseecomd work in recovery
-    chmod 0777 /dev/qseecom
-    chmod 0664 /dev/ion
-    chown system system /dev/ion
+on init
+    # Mount cgroup for cpu accounting
+    mount cgroup none /acct cpuacct
+    mkdir /acct/uid
 
-# Separate copy needed to use /sbin/linker64 instead of /system/bin/linker64
-service sbinqseecomd /sbin/qseecomd
-    user root
-    group root
-    disabled
-    seclabel u:r:recovery:s0
+    start hwservicemanager
 
-service prepdecrypt /sbin/prepdecrypt.sh
-    oneshot
-    disabled
-    user root
-    group root
-    seclabel u:r:recovery:s0
+on boot
+    setprop sys.usb.config adb
+    start prepdecrypt
+
+on property:crypto.ready=1
+    start sbin_qseecomd
+    start servicemanager
+
+    # Wait for qseecomd to finish
+    wait_for_prop sys.listeners.registered true
+
+    start gatekeeper-1-0
+    start keymaster-3-0
+
+on property:crypto.ready=0
+    stop keymaster-3-0
+    stop gatekeeper-1-0
+    stop servicemanager
+    stop sbin_qseecomd
 
 service hwservicemanager /sbin/hwservicemanager
     user root
@@ -60,29 +50,16 @@ service hwservicemanager /sbin/hwservicemanager
     onrestart setprop hwservicemanager.ready false
     seclabel u:r:recovery:s0
 
-service boot-1-0 /sbin/android.hardware.boot@1.0-service
-    user root
-    group root
-    disabled
-    seclabel u:r:recovery:s0
-
 service servicemanager /sbin/servicemanager
+    disabled
     user root
     group root readproc
-    disabled
     seclabel u:r:recovery:s0
+    writepid /dev/cpuset/system-background/tasks
 
-service keystore_auth /sbin/keystore_auth
-    oneshot
-    user system
-    group root
-    disabled
-    seclabel u:r:recovery:s0
-
-# keystore is started and stopped on demand by TWRP
-service keystore /sbin/keystore /tmp/misc/keystore
+service keymaster-3-0 /sbin/android.hardware.keymaster@3.0-service-qti
     user root
-    group root drmrpc readproc
+    group root
     disabled
     seclabel u:r:recovery:s0
 
@@ -92,29 +69,32 @@ service gatekeeper-1-0 /sbin/android.hardware.gatekeeper@1.0-service-qti
     disabled
     seclabel u:r:recovery:s0
 
-service keymaster-3-0 /sbin/android.hardware.keymaster@3.0-service-qti
+service sbin_qseecomd /sbin/qseecomd
+    disabled
     user root
     group root
-    disabled
     seclabel u:r:recovery:s0
 
-on boot
-    setprop sys.usb.config none
-    setprop sys.usb.config adb
+service prepdecrypt /sbin/prepdecrypt.sh
+    oneshot
+    disabled
+    user root
+    group root
+    seclabel u:r:recovery:s0
 
-on init
-    start hwservicemanager
-    start boot-1-0
-    start prepdecrypt
+# Handled by TWRP
+service keystore /sbin/keystore /tmp/misc/keystore
+    disabled
+    oneshot
+    user root
+    group root drmrpc readproc
+    seclabel u:r:recovery:s0
+    writepid /dev/cpuset/foreground/tasks
 
-on property:crypto.ready=0
-    stop sbinqseecomd
-    stop keymaster-3-0
-    stop gatekeeper-1-0
-    stop servicemanager
-
-on property:crypto.ready=1
-    start sbinqseecomd
-    start keymaster-3-0
-    start gatekeeper-1-0
-    start servicemanager
+# Handled by TWRP
+service keystore_auth /sbin/keystore_auth
+    disabled
+    oneshot
+    user system
+    group root
+    seclabel u:r:recovery:s0
