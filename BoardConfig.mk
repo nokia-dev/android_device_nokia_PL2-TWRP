@@ -41,6 +41,9 @@ TARGET_USES_UEFI := true
 # Crypto
 TARGET_HW_DISK_ENCRYPTION := true
 
+# Use system's VOLD and files in case TWRP's decryption fails
+TW_CRYPTO_USE_SYSTEM_VOLD := qseecomd
+
 # Enable CPUSets
 ENABLE_CPUSETS := true
 ENABLE_SCHEDBOOST := true
