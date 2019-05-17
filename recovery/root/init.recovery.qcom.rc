@@ -21,6 +21,8 @@ on init
     mount cgroup none /acct cpuacct
     mkdir /acct/uid
 
+    export LD_CONFIG_FILE /etc/ld.config.txt
+
     start hwservicemanager
 
 on boot
@@ -42,6 +44,10 @@ on property:crypto.ready=0
     stop gatekeeper-1-0
     stop servicemanager
     stop sbin_qseecomd
+
+service ldconfigtxt /sbin/touch /etc/ld.config.txt
+    oneshot
+    seclabel u:r:recovery:s0
 
 service hwservicemanager /sbin/hwservicemanager
     user root
