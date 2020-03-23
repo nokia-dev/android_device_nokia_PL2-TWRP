@@ -24,11 +24,10 @@ on init
     export LD_CONFIG_FILE /etc/ld.config.txt
 
     start hwservicemanager
-    start patchlevel
 
 on boot
     setprop sys.usb.config adb
-    wait /sbin/patchlevel_set
+    start prepdecrypt
 
 on property:crypto.ready=1
     start sbin_qseecomd
@@ -82,6 +81,13 @@ service sbin_qseecomd /sbin/qseecomd
     group root
     seclabel u:r:recovery:s0
 
+service prepdecrypt /sbin/prepdecrypt.sh
+    oneshot
+    disabled
+    user root
+    group root
+    seclabel u:r:recovery:s0
+
 # Handled by TWRP
 service keystore /sbin/keystore /tmp/misc/keystore
     disabled
@@ -97,11 +103,4 @@ service keystore_auth /sbin/keystore_auth
     oneshot
     user system
     group root
-    seclabel u:r:recovery:s0
-
-service patchlevel /sbin/patchlevel.sh
-    user root
-    group root
-    disabled
-    oneshot
     seclabel u:r:recovery:s0
